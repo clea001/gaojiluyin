@@ -56,10 +56,10 @@ class AudioRecordingService : Service() {
 
     private fun startRecording() {
         _state.value = RecordingState.Recording(0L)
-        currentFile = audioFileManager.createRecordingFile()
+        currentFile = audioFileManager.createWavRecordingFile()
         outputStream = FileOutputStream(currentFile!!)
 
-        val sampleRate = 44100
+        val sampleRate = 16000  // Whisper expects 16kHz
         val bufferSize = AudioRecord.getMinBufferSize(
             sampleRate,
             AudioFormat.CHANNEL_IN_MONO,
@@ -73,6 +73,9 @@ class AudioRecordingService : Service() {
             AudioFormat.ENCODING_PCM_16BIT,
             bufferSize * 2
         )
+
+        // Write WAV header placeholder (will be updated on stop)
+        writeWavHeader(outputStream!!, sampleRate, 1, 16)
 
         audioRecord?.startRecording()
         startForeground(NOTIFICATION_ID, createNotification("正在录音…"))
@@ -93,6 +96,31 @@ class AudioRecordingService : Service() {
             }
         }
     }
+
+    private fun writeWavHeader(out: FileOutputStream, sampleRate: Int, channels: Int, bitsPerSample: Int) {
+        val byteRate = sampleRate * channels * bitsPerSample / 8
+        val blockAlign = channels * bitsPerSample / 8
+
+        out.write("RIFF".toByteArray())
+        out.write(intToLittleEndian(0))  // placeholder for file size
+        out.write("WAVE".toByteArray())
+        out.write("fmt ".toByteArray())
+        out.write(intToLittleEndian(16))
+        out.write(shortToLittleEndian(1))  // PCM format
+        out.write(shortToLittleEndian(channels.toShort()))
+        out.write(intToLittleEndian(sampleRate))
+        out.write(intToLittleEndian(byteRate))
+        out.write(shortToLittleEndian(blockAlign.toShort()))
+        out.write(shortToLittleEndian(bitsPerSample.toShort()))
+        out.write("data".toByteArray())
+        out.write(intToLittleEndian(0))  // placeholder for data size
+    }
+
+    private fun intToLittleEndian(value: Int): ByteArray =
+        java.nio.ByteBuffer.allocate(4).order(java.nio.ByteOrder.LITTLE_ENDIAN).putInt(value).array()
+
+    private fun shortToLittleEndian(value: Short): ByteArray =
+        java.nio.ByteBuffer.allocate(2).order(java.nio.ByteOrder.LITTLE_ENDIAN).putShort(value).array()
 
     private fun pauseRecording() {
         _isPaused.value = true
@@ -115,14 +143,33 @@ class AudioRecordingService : Service() {
         outputStream?.close()
         outputStream = null
 
+        // Update WAV header with correct file size
         val file = currentFile
-        if (file != null && file.exists() && file.length() > 0) {
+        if (file != null && file.exists() && file.length() > 44) {
+            updateWavHeader(file)
             _state.value = RecordingState.Completed(file.absolutePath, file.length())
         } else {
             _state.value = RecordingState.Error("录音文件为空")
         }
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun updateWavHeader(file: File) {
+        try {
+            val fileSize = file.length()
+            val dataSize = fileSize - 44
+            val raf = java.io.RandomAccessFile(file, "rw")
+            // Update RIFF chunk size at offset 4
+            raf.seek(4)
+            raf.write(intToLittleEndian((fileSize - 8).toInt()))
+            // Update data chunk size at offset 40
+            raf.seek(40)
+            raf.write(intToLittleEndian(dataSize.toInt()))
+            raf.close()
+        } catch (e: Exception) {
+            // Header update failed, but file is still usable
+        }
     }
 
     override fun onDestroy() {

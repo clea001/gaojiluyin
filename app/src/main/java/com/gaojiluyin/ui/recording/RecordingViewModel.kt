@@ -74,7 +74,12 @@ class RecordingViewModel @Inject constructor(
             recordingRepository.updateStatus(id, "TRANSCRIBING")
 
             try {
-                val wavFile = audioFileManager.createWavFile(java.io.File(filePath))
+                val inputFile = java.io.File(filePath)
+                val wavFile = if (filePath.endsWith(".wav")) {
+                    inputFile  // Already WAV, use directly
+                } else {
+                    audioFileManager.createWavFile(inputFile)  // Convert M4A to WAV
+                }
                 val transcribeResult = transcribeAudioUseCase.execute(filePath, wavFile.absolutePath)
 
                 transcribeResult.fold(

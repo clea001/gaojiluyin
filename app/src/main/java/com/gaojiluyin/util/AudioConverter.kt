@@ -3,6 +3,7 @@ package com.gaojiluyin.util
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
@@ -15,6 +16,10 @@ import javax.inject.Singleton
 class AudioConverter @Inject constructor() {
 
     fun convertToWav(inputPath: String, outputPath: String) {
+        Log.i("AudioConverter", "Converting: $inputPath -> $outputPath")
+        val inputFile = File(inputPath)
+        Log.i("AudioConverter", "Input file exists: ${inputFile.exists()}, size: ${inputFile.length()}")
+
         val extractor = MediaExtractor()
         extractor.setDataSource(inputPath)
 

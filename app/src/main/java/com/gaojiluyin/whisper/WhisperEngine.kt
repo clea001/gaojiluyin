@@ -1,6 +1,7 @@
 package com.gaojiluyin.whisper
 
 import android.content.Context
+import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,7 +23,9 @@ class WhisperEngine @Inject constructor(
             try {
                 System.loadLibrary("whisper_jni")
                 libraryLoaded = true
+                Log.i("Whisper", "Native library loaded successfully")
             } catch (e: UnsatisfiedLinkError) {
+                Log.e("Whisper", "Failed to load native library", e)
                 throw e
             }
         }
@@ -34,16 +37,20 @@ class WhisperEngine @Inject constructor(
         try {
             ensureLibraryLoaded()
         } catch (e: UnsatisfiedLinkError) {
+            Log.e("Whisper", "Library load failed", e)
             return@withContext false
         }
 
         val modelFile = copyModelFromAssets(modelFileName)
         if (modelFile == null) {
+            Log.e("Whisper", "Model file not found in assets")
             return@withContext false
         }
 
+        Log.i("Whisper", "Initializing with model: ${modelFile.absolutePath}, size: ${modelFile.length()}")
         contextPtr = nativeInit(modelFile.absolutePath)
         isInitialized = contextPtr != 0L
+        Log.i("Whisper", "Initialized: $isInitialized, contextPtr: $contextPtr")
         isInitialized
     }
 

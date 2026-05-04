@@ -21,6 +21,11 @@ class AudioFileManager @Inject constructor(
         return File(audioDir, "recording_${timestamp}.m4a")
     }
 
+    fun createWavRecordingFile(): File {
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        return File(audioDir, "recording_${timestamp}.wav")
+    }
+
     fun createWavFile(m4aFile: File): File {
         val wavName = m4aFile.nameWithoutExtension + ".wav"
         return File(audioDir, wavName)
