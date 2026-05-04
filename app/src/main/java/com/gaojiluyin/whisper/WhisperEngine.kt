@@ -15,13 +15,27 @@ class WhisperEngine @Inject constructor(
 ) {
     private var contextPtr: Long = 0L
     private var isInitialized = false
+    private var libraryLoaded = false
 
-    init {
-        System.loadLibrary("whisper_jni")
+    private fun ensureLibraryLoaded() {
+        if (!libraryLoaded) {
+            try {
+                System.loadLibrary("whisper_jni")
+                libraryLoaded = true
+            } catch (e: UnsatisfiedLinkError) {
+                throw e
+            }
+        }
     }
 
     suspend fun initialize(modelFileName: String = "ggml-base.bin"): Boolean = withContext(Dispatchers.IO) {
         if (isInitialized) return@withContext true
+
+        try {
+            ensureLibraryLoaded()
+        } catch (e: UnsatisfiedLinkError) {
+            return@withContext false
+        }
 
         val modelFile = copyModelFromAssets(modelFileName)
         if (modelFile == null) {

@@ -45,6 +45,13 @@ android {
         compose = true
     }
 
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
     sourceSets["main"].jniLibs.srcDirs("src/main/jniLibs")
 }
 
@@ -56,6 +63,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.icons.extended)
     debugImplementation(libs.compose.ui.tooling)
+    implementation("androidx.activity:activity-compose:1.9.3")
 
     // Lifecycle
     implementation(libs.lifecycle.runtime)
