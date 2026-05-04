@@ -1,0 +1,16 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/app/build
+/app/src/main/assets/models/*.bin
+/app/src/main/cpp/whisper.cpp/.git
+/app/src/main/cpp/whisper.cpp/.github
+*.apk
+*.aab

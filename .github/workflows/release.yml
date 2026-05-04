@@ -1,0 +1,88 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager "ndk;27.2.12479018"
+
+      - name: Clone whisper.cpp
+        run: |
+          cd app/src/main/cpp
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git
+
+      - name: Download Whisper model
+        run: |
+          curl -L -o app/src/main/assets/models/ggml-base.bin \
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Get version info
+        id: version
+        run: |
+          VERSION_NAME="${GITHUB_REF#refs/tags/}"
+          VERSION_CODE=$(echo "$VERSION_NAME" | sed 's/v//' | tr -d '.' | sed 's/^0*//')
+          APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+          APK_SIZE=$(stat -f%z "$APK_PATH" 2>/dev/null || stat -c%s "$APK_PATH")
+          MD5=$(md5sum "$APK_PATH" | cut -d' ' -f1)
+
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+          echo "md5=$MD5" >> $GITHUB_OUTPUT
+
+      - name: Create version.json
+        run: |
+          cat > version.json << EOF
+          {
+            "versionCode": ${{ steps.version.outputs.version_code }},
+            "versionName": "${{ steps.version.outputs.version_name }}",
+            "apkUrl": "${{ steps.version.outputs.version_name }}/GaoJiLuYin-${{ steps.version.outputs.version_name }}.apk",
+            "apkSize": ${{ steps.version.outputs.apk_size }},
+            "md5": "${{ steps.version.outputs.md5 }}",
+            "changelog": "自动构建发布 ${{ steps.version.outputs.version_name }}",
+            "forceUpdate": false
+          }
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            app/build/outputs/apk/debug/app-debug.apk
+            version.json
+          body: |
+            ## ${{ steps.version.outputs.version_name }}
+
+            ### 下载
+            - APK: GaoJiLuYin-${{ steps.version.outputs.version_name }}.apk
+            - 大小: ${{ steps.version.outputs.apk_size }} bytes
+            - MD5: ${{ steps.version.outputs.md5 }}
+
+            ### 国内镜像下载
+            如果GitHub下载慢，可以使用以下镜像：
+            - ghproxy: `https://mirror.ghproxy.com/https://github.com/YOUR_USERNAME/gaojiluyin/releases/download/${{ steps.version.outputs.version_name }}/GaoJiLuYin-${{ steps.version.outputs.version_name }}.apk`
+            - FastGit: `https://hub.gitmirror.com/https://github.com/YOUR_USERNAME/gaojiluyin/releases/download/${{ steps.version.outputs.version_name }}/GaoJiLuYin-${{ steps.version.outputs.version_name }}.apk`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

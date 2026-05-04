@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">高级录音</string>
+    <string name="recording_channel_name">录音服务</string>
+    <string name="recording_channel_desc">正在录音中</string>
+    <string name="notification_recording">正在录音…</string>
+    <string name="notification_paused">录音已暂停</string>
+</resources>
