@@ -6,12 +6,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gaojiluyin.data.local.db.entity.RecordingEntity
 import com.gaojiluyin.data.local.file.AudioFileManager
+import com.gaojiluyin.data.remote.llm.LlmProviders
 import com.gaojiluyin.data.repository.DocumentRepository
 import com.gaojiluyin.data.repository.RecordingRepository
 import com.gaojiluyin.domain.usecase.OrganizeWithLLMUseCase
 import com.gaojiluyin.domain.usecase.TranscribeAudioUseCase
 import com.gaojiluyin.service.AudioRecordingService
 import com.gaojiluyin.service.RecordingState
+import com.gaojiluyin.util.ApiKeyProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +30,8 @@ class RecordingViewModel @Inject constructor(
     private val documentRepository: DocumentRepository,
     private val audioFileManager: AudioFileManager,
     private val transcribeAudioUseCase: TranscribeAudioUseCase,
-    private val organizeWithLLMUseCase: OrganizeWithLLMUseCase
+    private val organizeWithLLMUseCase: OrganizeWithLLMUseCase,
+    private val apiKeyProvider: ApiKeyProvider
 ) : AndroidViewModel(app) {
 
     val recordingState: StateFlow<RecordingState> = AudioRecordingService.state
@@ -78,12 +81,14 @@ class RecordingViewModel @Inject constructor(
 
                     llmResult.fold(
                         onSuccess = { doc ->
+                            val providerId = apiKeyProvider.getPrimaryProviderId()
+                            val providerInfo = LlmProviders.getById(providerId)
                             val docEntity = organizeWithLLMUseCase.toDocumentEntity(
                                 recordingId = id,
                                 transcript = transcript,
                                 doc = doc,
-                                provider = "claude",
-                                model = "claude-sonnet-4-20250514"
+                                provider = providerInfo?.name ?: providerId,
+                                model = apiKeyProvider.getModel(providerId)
                             )
                             documentRepository.insertDocument(docEntity)
                             recordingRepository.updateStatus(id, "COMPLETED")

@@ -2,7 +2,7 @@
     "versionCode": 1,
     "versionName": "v1.0.0",
     "apkUrl": "v1.0.0/GaoJiLuYin-v1.0.0.apk",
-    "apkSize": 165517194,
+    "apkSize": 165517135,
     "md5": "auto",
     "changelog": "1. 录音服务（暂停/恢复）\n2. Whisper本地语音转写\n3. Claude/GPT云端LLM文档整理\n4. 自动更新系统",
     "forceUpdate": false
