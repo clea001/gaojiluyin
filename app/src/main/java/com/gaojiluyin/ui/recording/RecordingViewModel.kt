@@ -52,6 +52,12 @@ class RecordingViewModel @Inject constructor(
     fun stopRecording() = sendServiceAction(AudioRecordingService.ACTION_STOP)
 
     fun onRecordingCompleted(filePath: String, fileSize: Long, durationMs: Long) {
+        // Prevent duplicate processing
+        if (_pipelineState.value != PipelineState.Idle) return
+
+        // Reset service state immediately to prevent re-triggering
+        AudioRecordingService.resetState()
+
         viewModelScope.launch {
             val timestamp = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()).format(Date())
             val entity = RecordingEntity(
@@ -67,44 +73,59 @@ class RecordingViewModel @Inject constructor(
             _pipelineState.value = PipelineState.Transcribing
             recordingRepository.updateStatus(id, "TRANSCRIBING")
 
-            val wavFile = audioFileManager.createWavFile(java.io.File(filePath))
-            val transcribeResult = transcribeAudioUseCase.execute(filePath, wavFile.absolutePath)
+            try {
+                val wavFile = audioFileManager.createWavFile(java.io.File(filePath))
+                val transcribeResult = transcribeAudioUseCase.execute(filePath, wavFile.absolutePath)
 
-            transcribeResult.fold(
-                onSuccess = { transcript ->
-                    recordingRepository.updateRecording(
-                        entity.copy(id = id, wavFilePath = wavFile.absolutePath, status = "ORGANIZING")
-                    )
-
-                    _pipelineState.value = PipelineState.Organizing
-                    val llmResult = organizeWithLLMUseCase.execute(transcript)
-
-                    llmResult.fold(
-                        onSuccess = { doc ->
-                            val providerId = apiKeyProvider.getPrimaryProviderId()
-                            val providerInfo = LlmProviders.getById(providerId)
-                            val docEntity = organizeWithLLMUseCase.toDocumentEntity(
-                                recordingId = id,
-                                transcript = transcript,
-                                doc = doc,
-                                provider = providerInfo?.name ?: providerId,
-                                model = apiKeyProvider.getModel(providerId)
-                            )
-                            documentRepository.insertDocument(docEntity)
-                            recordingRepository.updateStatus(id, "COMPLETED")
-                            _pipelineState.value = PipelineState.Completed(id)
-                        },
-                        onFailure = { error ->
-                            recordingRepository.updateStatus(id, "ERROR", "LLM整理失败: ${error.message}")
-                            _pipelineState.value = PipelineState.Error("LLM整理失败: ${error.message}")
+                transcribeResult.fold(
+                    onSuccess = { transcript ->
+                        if (transcript.isBlank()) {
+                            recordingRepository.updateStatus(id, "ERROR", "转写结果为空，请检查Whisper模型")
+                            _pipelineState.value = PipelineState.Error("转写结果为空，请检查Whisper模型是否已下载")
+                            return@fold
                         }
-                    )
-                },
-                onFailure = { error ->
-                    recordingRepository.updateStatus(id, "ERROR", "转写失败: ${error.message}")
-                    _pipelineState.value = PipelineState.Error("转写失败: ${error.message}")
-                }
-            )
+
+                        recordingRepository.updateRecording(
+                            entity.copy(id = id, wavFilePath = wavFile.absolutePath, status = "ORGANIZING")
+                        )
+
+                        _pipelineState.value = PipelineState.Organizing
+                        val llmResult = organizeWithLLMUseCase.execute(transcript)
+
+                        llmResult.fold(
+                            onSuccess = { doc ->
+                                val providerId = apiKeyProvider.getPrimaryProviderId()
+                                val providerInfo = LlmProviders.getById(providerId)
+                                val docEntity = organizeWithLLMUseCase.toDocumentEntity(
+                                    recordingId = id,
+                                    transcript = transcript,
+                                    doc = doc,
+                                    provider = providerInfo?.name ?: providerId,
+                                    model = apiKeyProvider.getModel(providerId)
+                                )
+                                documentRepository.insertDocument(docEntity)
+                                recordingRepository.updateStatus(id, "COMPLETED")
+                                _pipelineState.value = PipelineState.Completed(id)
+                            },
+                            onFailure = { error ->
+                                // LLM failed, but save the transcript anyway
+                                recordingRepository.updateRecording(
+                                    entity.copy(id = id, wavFilePath = wavFile.absolutePath, status = "TRANSCRIBED")
+                                )
+                                recordingRepository.updateStatus(id, "ERROR", "LLM整理失败: ${error.message}")
+                                _pipelineState.value = PipelineState.Error("AI整理失败: ${error.message}")
+                            }
+                        )
+                    },
+                    onFailure = { error ->
+                        recordingRepository.updateStatus(id, "ERROR", "转写失败: ${error.message}")
+                        _pipelineState.value = PipelineState.Error("转写失败: ${error.message}")
+                    }
+                )
+            } catch (e: Exception) {
+                recordingRepository.updateStatus(id, "ERROR", "处理异常: ${e.message}")
+                _pipelineState.value = PipelineState.Error("处理异常: ${e.message}")
+            }
         }
     }
 

@@ -14,6 +14,12 @@ class TranscribeAudioUseCase @Inject constructor(
 ) {
     suspend fun execute(m4aPath: String, wavPath: String): Result<String> {
         return try {
+            // Initialize whisper engine (loads model on first call)
+            val initialized = whisperEngine.initialize()
+            if (!initialized) {
+                return Result.failure(Exception("Whisper模型加载失败，请检查模型文件"))
+            }
+
             audioConverter.convertToWav(m4aPath, wavPath)
             val pcmData = audioPreprocessor.loadPcmAsFloat(wavPath)
             val transcript = whisperEngine.transcribe(pcmData)

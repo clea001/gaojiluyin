@@ -173,6 +173,11 @@ class AudioRecordingService : Service() {
         val state: StateFlow<RecordingState> = _state
 
         private val _isPaused = MutableStateFlow(false)
+
+        fun resetState() {
+            _state.value = RecordingState.Idle
+            _isPaused.value = false
+        }
     }
 }
 
