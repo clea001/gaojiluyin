@@ -17,14 +17,14 @@ data class MirrorInfo(
 )
 
 object UpdateConfig {
-    const val GITHUB_REPO = "Clea0/gaojiluyin"
+    const val GITHUB_REPO = "clea001/gaojiluyin"
     const val VERSION_CHECK_PATH = "releases/latest/version.json"
 
     val MIRRORS = listOf(
         MirrorInfo("GitHub", "https://github.com"),
         MirrorInfo("ghproxy", "https://mirror.ghproxy.com/https://github.com"),
         MirrorInfo("FastGit", "https://hub.gitmirror.com/https://github.com"),
-        MirrorInfo("Gitee(需同步)", "https://gitee.com/Clea0/gaojiluyin/raw/main")
+        MirrorInfo("Gitee(需同步)", "https://gitee.com/clea001/gaojiluyin/raw/main")
     )
 
     fun getVersionCheckUrls(): List<String> {
